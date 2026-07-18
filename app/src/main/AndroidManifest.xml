@@ -12,6 +12,7 @@
     <!-- 前台服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- 悬浮窗（在部分 MIUI 路径下用于锁屏上层展示） -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
