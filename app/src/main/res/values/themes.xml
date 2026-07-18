@@ -1,13 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.SmsAlert" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryDark">@color/purple_700</item>
-        <item name="android:statusBarColor">@color/purple_700</item>
+    <!-- App 主主题：深色 Material 3 -->
+    <style name="Theme.SmsAlert" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- 主色 -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorPrimaryContainer">@color/primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/on_primary_container</item>
+
+        <!-- 强调 -->
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/on_accent</item>
+
+        <!-- 背景/表面 -->
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+
+        <!-- 错误 -->
+        <item name="colorError">@color/error</item>
+        <item name="colorOnErrorContainer">@color/on_error_container</item>
+
+        <!-- 轮廓 -->
+        <item name="colorOutline">@color/outline</item>
+
+        <!-- 状态栏/导航栏 -->
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- 自定义按钮：filled 主色、outlined 轮廓 -->
+        <item name="materialButtonStyle">@style/Widget.SmsAlert.Button</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.SmsAlert.Button.Outlined</item>
+    </style>
+
+    <!-- 主操作按钮（Filled，大圆角） -->
+    <style name="Widget.SmsAlert.Button" parent="Widget.Material3.Button">
+        <item name="cornerRadius">16dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+    </style>
+
+    <!-- 次级按钮（Outlined，大圆角） -->
+    <style name="Widget.SmsAlert.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">16dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+    </style>
+
+    <!-- 卡片 -->
+    <style name="Widget.SmsAlert.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">4dp</item>
+        <item name="cardBackgroundColor">@color/surface</item>
+        <item name="contentPadding">16dp</item>
     </style>
 
     <!-- 强提醒全屏主题：纯黑底、状态栏/导航栏同色、无标题 -->
-    <style name="Theme.SmsAlert.Alert" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.SmsAlert.Alert" parent="Theme.Material3.Dark.NoActionBar">
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowBackground">@color/alert_bg</item>
         <item name="android:statusBarColor">@color/alert_bg</item>

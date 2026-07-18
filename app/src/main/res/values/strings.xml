@@ -1,4 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">关键短信强提醒</string>
+    <string name="subtitle_status">守护关键短信，不错过任何重要消息</string>
+
+    <!-- 状态卡片 -->
+    <string name="label_sms">短信权限</string>
+    <string name="label_notification">通知权限</string>
+    <string name="label_battery">电池无限制</string>
+    <string name="label_overlay">悬浮窗</string>
+    <string name="status_unknown">未知</string>
+    <string name="status_granted">已开启</string>
+    <string name="status_denied">未开启</string>
+    <string name="status_optional">未开启（可选）</string>
+    <string name="status_restricted">受限</string>
+
+    <!-- 操作区 -->
+    <string name="section_main_actions">主操作</string>
+    <string name="btn_rules">规则设置（关键词 / 号码）</string>
+    <string name="btn_settings">高级设置（铃声 / 强度）</string>
+    <string name="btn_start_monitor">开启后台监控</string>
+    <string name="btn_test_alert">测试提醒</string>
+
+    <!-- 权限设置区 -->
+    <string name="section_permissions">权限与系统设置</string>
+    <string name="btn_grant_sms">授予短信权限</string>
+    <string name="btn_grant_notif">授予通知权限</string>
+    <string name="btn_battery">电池无限制（关掉省电）</string>
+    <string name="btn_overlay">授予悬浮窗（可选）</string>
+    <string name="btn_autostart">小米：开启自启动</string>
+
+    <!-- 提示区 -->
+    <string name="guide_hint">请确保上方必要权限已开启，否则后台监控或强提醒可能无法正常工作。点击“测试提醒”可验证效果。</string>
+
+    <!-- 规则页 -->
+    <string name="section_rules">规则设置</string>
+    <string name="rules_subtitle">命中关键词或号码的短信将触发强提醒</string>
+    <string name="btn_add_keyword">加关键词</string>
+    <string name="btn_add_sender">加号码</string>
+    <string name="rules_hint">点击规则切换启用/停用，长按删除规则</string>
+    <string name="rules_empty">暂无规则，点击上方按钮添加</string>
+
+    <!-- 设置页 -->
+    <string name="section_settings">高级设置</string>
+    <string name="settings_subtitle">自定义提醒铃声与强度</string>
+    <string name="label_ringtone">提醒铃声</string>
+    <string name="default_ringtone">系统默认闹钟声</string>
+    <string name="btn_choose">选择</string>
+    <string name="label_interval">重复保活间隔</string>
+    <string name="hint_interval">秒（建议 10–30）</string>
+    <string name="label_alert_options">提醒强度</string>
+    <string name="opt_max_volume">强制最大闹钟音量（绕过静音）</string>
+    <string name="opt_vibrate">强震动</string>
+    <string name="opt_flash">锁屏界面红色闪烁</string>
+    <string name="btn_save">保存并返回</string>
+
+    <!-- 全屏强提醒页 -->
+    <string name="alert_title">关键短信</string>
+    <string name="alert_sender_label">发件人</string>
+    <string name="alert_dismiss">我已知晓，关闭提醒</string>
 </resources>

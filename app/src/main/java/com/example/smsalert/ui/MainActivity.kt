@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -67,16 +68,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
-        val sb = StringBuilder()
-        sb.append("短信权限：")
-            .append(if (PermissionHelper.hasSmsPermissions(this)) "已授权 ✅" else "未授权 ❌")
-        sb.append("\n通知权限：")
-            .append(if (PermissionHelper.hasNotifications(this)) "已授权 ✅" else "未授权 ❌")
-        sb.append("\n电池无限制：")
-            .append(if (PermissionHelper.hasIgnoreBattery(this)) "已豁免 ✅" else "受限 ❌（建议开启）")
-        sb.append("\n悬浮窗：")
-            .append(if (PermissionHelper.hasOverlay(this)) "已授权 ✅" else "未授权（可选）")
-        binding.tvStatus.text = sb.toString()
+        setStatus(
+            binding.tvStatusSms,
+            PermissionHelper.hasSmsPermissions(this),
+            R.string.status_granted,
+            R.string.status_denied
+        )
+        setStatus(
+            binding.tvStatusNotif,
+            PermissionHelper.hasNotifications(this),
+            R.string.status_granted,
+            R.string.status_denied
+        )
+        setStatus(
+            binding.tvStatusBattery,
+            PermissionHelper.hasIgnoreBattery(this),
+            R.string.status_granted,
+            R.string.status_restricted
+        )
+        setStatus(
+            binding.tvStatusOverlay,
+            PermissionHelper.hasOverlay(this),
+            R.string.status_granted,
+            R.string.status_optional
+        )
+    }
+
+    private fun setStatus(tv: TextView, ok: Boolean, okRes: Int, noRes: Int) {
+        tv.text = getString(if (ok) okRes else noRes)
+        tv.setTextColor(
+            ContextCompat.getColor(
+                this,
+                if (ok) R.color.success else R.color.warning
+            )
+        )
     }
 
     private fun requestSms() {
