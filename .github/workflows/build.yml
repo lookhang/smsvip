@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -47,6 +47,18 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 1
+
+      - name: Release APK to GitHub Releases
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes || true
+          gh release create latest "app/build/outputs/apk/debug/app-debug.apk" \
+            --title "Debug APK (latest)" \
+            --notes "Auto-built from commit ${{ github.sha }}" \
+            --prerelease
 
       - name: Report build error
         if: failure()
