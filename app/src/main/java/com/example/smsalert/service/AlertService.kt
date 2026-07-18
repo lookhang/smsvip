@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.Ringtone
@@ -29,25 +30,29 @@ import com.example.smsalert.ui.AlertActivity
 /**
  * 强提醒播放引擎。
  *
- * 设计要点（对应“越强越好、静音/免打扰也能提醒、直到用户关闭”）：
- * 1) 使用闹钟流（STREAM_ALARM / USAGE_ALARM）播放循环铃声 —— 闹钟流通常不受“静音/媒体音量/勿扰(闹钟类)”影响；
- * 2) 启动时强制把闹钟音量拉到最大，并“取消闹钟流静音”（部分小米 ROM 会把闹钟流静音，只拉音量仍无声）；
- * 3) 每隔 repeatInterval 秒“重新拉满音量 + 取消静音 + 确保仍在播放 + 重新震动”，对抗系统重置；
+ * 设计要点：
+ * 1) 声音采用“双重保险”：
+ *    a) 通知渠道自带声音（setBypassDnd 渠道 + setSound）——由系统通知栈负责播放，
+ *       这是穿透勿扰/静音最可靠的方式；
+ *    b) 同时用 MediaPlayer 循环播放内置报警音（USAGE_ALARM + 最大音量 + 请求音频焦点），
+ *       Ringtone 作为兜底，保证“持续响”的报警效果。
+ * 2) 强制把闹钟音量拉到最大并取消闹钟流静音（小米常把闹钟流静音）；
+ * 3) 周期保活：重新拉满音量/取消静音/确保仍在播放/重新震动；
  * 4) 强震动（长波形重复）；
  * 5) PARTIAL_WAKE_LOCK 保持 CPU，配合 AlertActivity 点亮屏幕；
- * 6) 最高优先级 + setBypassDnd + 全屏意图 的通知，锁屏上层弹出；
- * 7) 只有“关闭提醒”动作才会释放资源并停止自身 —— 不自动消失。
+ * 6) 只有“关闭提醒”动作才会释放资源并停止自身。
  *
- * 稳定性：onStartCommand 全程 try/catch，startForeground 必定最先调用（带兜底通知），
- * 重活移交 Handler 稍后执行，彻底规避 “startForegroundService 未在时限内调用 startForeground”
- * 导致的 RemoteServiceException 进程闪退；重复触发用 alerting 幂等标志防重复初始化。
+ * 稳定性：onStartCommand 全程 try/catch，startForeground 必定最先调用（带兜底），
+ * 重活移交 Handler 稍后执行，规避“startForegroundService 未在时限内调用 startForeground”
+ * 导致的 RemoteServiceException 闪退；重复触发用 alerting 幂等标志防重复初始化。
  */
 class AlertService : Service() {
 
-    private var ringtone: Ringtone? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var audioFocusReq: AudioFocusRequest? = null
     private val handler = Handler(mainLooper)
     private lateinit var settings: SettingsRepository
     private var sender: String = ""
@@ -92,16 +97,13 @@ class AlertService : Service() {
             // 1) 立即进入前台（必须在 startForegroundService 后限定时间内调用，否则系统直接杀进程 / 闪退）
             startForegroundSafely()
 
-            // 2) 具体播放/震动等较重工作放到主线程消息队列稍后执行，确保 startForeground 先返回，
-            //    彻底规避 “startForegroundService 未在时限内调用 startForeground” 的崩溃。
-            //    用 alerting 幂等标志，避免对已运行的服务重复初始化导致异常。
+            // 2) 播放/震动等较重工作放到主线程消息队列稍后执行；用 alerting 幂等标志防重复初始化
             if (!alerting) {
                 alerting = true
                 handler.post { startAlert() }
             }
             return START_STICKY
         } catch (e: Throwable) {
-            // 任何异常都不应拖垮整个进程（否则表现为“直接闪退”）
             try { stopAlert() } catch (_: Throwable) { }
             return START_NOT_STICKY
         }
@@ -112,7 +114,6 @@ class AlertService : Service() {
             ensureChannel()
             startForeground(NOTIF_ID, buildNotification())
         } catch (e: Throwable) {
-            // 极端情况下通知构建失败也要先占位，避免 RemoteServiceException
             try {
                 val fallback = NotificationCompat.Builder(this, Constants.CHANNEL_ALERT_ID)
                     .setContentTitle("关键短信强提醒")
@@ -136,8 +137,8 @@ class AlertService : Service() {
                 ).apply {
                     description = "关键短信强提醒（最高优先级，可绕过勿扰）"
                     setBypassDnd(true)
-                    // 声音由本服务用 Ringtone/MediaPlayer 自行播放，渠道本身不重复响铃
-                    setSound(null, null)
+                    // 渠道自带声音：由系统通知栈播放，是穿透勿扰/静音最可靠的方式
+                    setSound(alarmSoundUri(), alarmAudioAttrs)
                     lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 }
                 nm.createNotificationChannel(ch)
@@ -145,10 +146,19 @@ class AlertService : Service() {
         }
     }
 
+    private val alarmAudioAttrs: AudioAttributes by lazy {
+        AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+    }
+
+    private fun alarmSoundUri(): Uri =
+        Uri.parse("android.resource://$packageName/${R.raw.alarm}")
+
     private fun startAlert() {
         if (released) return
         try {
-            // 1) 保持 CPU 唤醒（至多 10 分钟，期间会反复续期）
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmsAlert::AlertWake").apply {
                 setReferenceCounted(false)
@@ -156,22 +166,18 @@ class AlertService : Service() {
             }
         } catch (_: Throwable) { }
 
-        // 2) 强制闹钟流：拉满音量 + 取消静音（小米常把闹钟流静音，只设音量仍无声）
+        // 强制闹钟流：拉满音量 + 取消静音
         forceAlarmAudio()
+        // 请求音频焦点，确保我们的报警声压过其他声音
+        requestAlarmFocus()
 
-        // 3) 播放铃声：优先用户自定义，否则内置报警音
-        try {
-            val userUri = settings.ringtoneUri
-            val ok = if (!userUri.isNullOrBlank()) startRingtone(userUri) else false
-            if (!ok) startBuiltIn()
-        } catch (_: Throwable) {
-            try { startBuiltIn() } catch (_: Throwable) { }
-        }
+        // 播放声音：MediaPlayer 主，Ringtone 兜底
+        startSound()
 
-        // 4) 强震动
+        // 强震动
         if (settings.vibrate) startVibration()
 
-        // 5) 周期性“保活”：重新拉满音量/取消静音/确保播放/重新震动
+        // 周期保活
         scheduleRepeat()
     }
 
@@ -183,25 +189,59 @@ class AlertService : Service() {
                 val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
                 am.setStreamVolume(AudioManager.STREAM_ALARM, max, 0)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    // 小米等 ROM 可能把闹钟流静音，仅设音量无效，必须显式取消静音
                     am.adjustStreamVolume(AudioManager.STREAM_ALARM, AudioManager.ADJUST_UNMUTE, 0)
                 }
             }
         } catch (_: Throwable) { }
     }
 
-    private val alarmAudioAttrs: AudioAttributes by lazy {
-        AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
+    private fun requestAlarmFocus() {
+        try {
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusReq = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                    .setAudioAttributes(alarmAudioAttrs)
+                    .build()
+                am.requestAudioFocus(audioFocusReq!!)
+            } else {
+                @Suppress("DEPRECATION")
+                am.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            }
+        } catch (_: Throwable) { }
     }
 
-    /** 用系统 Ringtone 播放（更稳，且自动走闹钟流） */
-    private fun startRingtone(uriStr: String): Boolean {
+    /** 播放报警声：MediaPlayer（主）→ Ringtone（兜底） */
+    private fun startSound() {
+        val ok = startMediaPlayer()
+        if (!ok) startRingtoneFallback()
+    }
+
+    /** 主播放：MediaPlayer 循环播放内置报警音，走闹钟流、最大音量 */
+    private fun startMediaPlayer(): Boolean {
         return try {
             stopSound()
-            val uri = Uri.parse(uriStr)
+            val afd = resources.openRawResourceFd(R.raw.alarm)
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(alarmAudioAttrs)
+                setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                isLooping = true
+                setVolume(1.0f, 1.0f)
+                prepare()
+                start()
+            }
+            afd.close()
+            true
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    /** 兜底：Ringtone 播放（用户自定义或内置） */
+    private fun startRingtoneFallback(): Boolean {
+        return try {
+            stopSound()
+            val userUri = settings.ringtoneUri
+            val uri = if (!userUri.isNullOrBlank()) Uri.parse(userUri) else alarmSoundUri()
             ringtone = RingtoneManager.getRingtone(this, uri)?.apply {
                 audioAttributes = alarmAudioAttrs
                 isLooping = true
@@ -213,47 +253,12 @@ class AlertService : Service() {
         }
     }
 
-    /** 内置报警音（res/raw/alarm.wav），Ringtone 不可用时回退 MediaPlayer */
-    private fun startBuiltIn(): Boolean {
-        return try {
-            stopSound()
-            val uri = Uri.parse("android.resource://$packageName/${R.raw.alarm}")
-            ringtone = RingtoneManager.getRingtone(this, uri)?.apply {
-                audioAttributes = alarmAudioAttrs
-                isLooping = true
-                play()
-            }
-            if (ringtone != null) true else startBuiltInMediaPlayer()
-        } catch (e: Throwable) {
-            startBuiltInMediaPlayer()
-        }
-    }
-
-    /** 内置报警音的 MediaPlayer 兜底（Ringtone 不可用时） */
-    private fun startBuiltInMediaPlayer(): Boolean {
-        return try {
-            stopSound()
-            resources.openRawResourceFd(R.raw.alarm)?.use { afd ->
-                mediaPlayer = MediaPlayer().apply {
-                    setAudioAttributes(alarmAudioAttrs)
-                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                    isLooping = true
-                    prepare()
-                    start()
-                }
-            }
-            mediaPlayer != null
-        } catch (e: Throwable) {
-            false
-        }
-    }
-
     private fun stopSound() {
-        try { ringtone?.stop() } catch (_: Throwable) { }
-        ringtone = null
         try { mediaPlayer?.stop() } catch (_: Throwable) { }
         try { mediaPlayer?.release() } catch (_: Throwable) { }
         mediaPlayer = null
+        try { ringtone?.stop() } catch (_: Throwable) { }
+        ringtone = null
     }
 
     private val repeatRunnable = object : Runnable {
@@ -262,11 +267,8 @@ class AlertService : Service() {
             try {
                 forceAlarmAudio()
                 // 确保仍在响：若被系统打断则重新播放
-                if (ringtone?.isPlaying != true) {
-                    try { ringtone?.play() } catch (_: Throwable) {
-                        try { startBuiltIn() } catch (_: Throwable) { }
-                    }
-                }
+                val playing = mediaPlayer?.isPlaying == true || ringtone?.isPlaying == true
+                if (!playing) startSound()
                 if (settings.vibrate) startVibration()
             } catch (_: Throwable) { }
             handler.postDelayed(this, (settings.repeatIntervalSec * 1000).toLong())
@@ -287,7 +289,6 @@ class AlertService : Service() {
                 getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             }
         }
-        // 强烈、重复的长震动波形（毫秒）：响0.8s -> 停0.4s -> 响0.8s -> 停0.4s -> 响0.8s -> 循环
         val pattern = longArrayOf(0, 800, 400, 800, 400, 800)
         vibrator?.let {
             try {
@@ -332,7 +333,6 @@ class AlertService : Service() {
             .build()
     }
 
-    /** 释放所有资源（不含 stopSelf，避免与 onDestroy 互相递归） */
     private fun releaseResources() {
         if (released) return
         released = true
@@ -341,6 +341,16 @@ class AlertService : Service() {
         stopSound()
         try { vibrator?.cancel() } catch (_: Throwable) { }
         vibrator = null
+        try {
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusReq != null) {
+                am.abandonAudioFocusRequest(audioFocusReq!!)
+            } else {
+                @Suppress("DEPRECATION")
+                am.abandonAudioFocus(null)
+            }
+        } catch (_: Throwable) { }
+        audioFocusReq = null
         if (wakeLock?.isHeld == true) try { wakeLock?.release() } catch (_: Throwable) { }
         wakeLock = null
     }

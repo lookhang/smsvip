@@ -8,38 +8,59 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.Telephony
 import androidx.core.app.NotificationCompat
 import com.example.smsalert.Constants
 import com.example.smsalert.R
-import com.example.smsalert.data.RulesRepository
 
 /**
- * 备份触发通道：前台服务 + 监听短信收件箱的 ContentObserver。
+ * 备份触发通道：前台服务 + 监听短信收件箱的 ContentObserver + 定时轮询兜底。
  *
- * 为什么需要它？
- * 1) 部分 MIUI/HyperOS 版本在“省电/后台限制”下可能延迟或丢弃广播；
- * 2) 应用被短暂回收后，常驻前台服务能更快恢复；
- * 3) 与广播接收器互为冗余，提高命中率。
+ * 为什么需要这么多层？
+ * 1) SmsReceiver（广播）在小米/HyperOS 下常被拦截，尤其 App 非默认短信 App、或被省电/后台限制时；
+ * 2) ContentObserver 依赖本服务常驻，服务被杀即失效；
+ * 3) 因此再增加“定时轮询收件箱”兜底：即使广播与 Observer 双双失效，也能在 15 秒内抓到新短信。
  *
- * 同时它也是“后台监控常驻”的可视化入口（低优先级通知）。
+ * 另外：每条被 App 看到的短信都会写入 SmsLog（无论是否命中规则），
+ * 既能验证 App 是否真的读到了短信，也作为“提醒记录”供查询。
  */
 class MonitorService : Service() {
     private var observer: SmsObserver? = null
+    private val handler = Handler(mainLooper)
+    private var lastSeenId: Long = -1L
 
     companion object {
+        private const val POLL_INTERVAL_MS = 15_000L
+
         fun start(context: Context) {
             val intent = Intent(context, MonitorService::class.java)
             context.startForegroundService(intent)
         }
+
+        /** 服务是否正在运行（用于主页在 onResume 时按需拉起） */
+        fun isRunning(context: Context): Boolean {
+            val nm = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            @Suppress("DEPRECATION")
+            for (s in nm.getRunningServices(Int.MAX_VALUE)) {
+                if (s.service.className == MonitorService::class.java.name) return true
+            }
+            return false
+        }
+
+        private const val PREFS_MONITOR = "monitor_prefs"
+        private const val KEY_LAST_SEEN_ID = "last_seen_sms_id"
     }
 
     override fun onCreate() {
         super.onCreate()
+        lastSeenId = getLastSeenId()
         startForeground(1, buildNotification())
         val cr = contentResolver
         observer = SmsObserver(Handler(mainLooper))
         cr.registerContentObserver(Telephony.Sms.CONTENT_URI, true, observer!!)
+        // 兜底轮询：即使广播/Observer 失效，也能抓到新短信
+        handler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -47,46 +68,93 @@ class MonitorService : Service() {
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // 任务被划掉时尽量自愈重启（小米下仍可能受省电限制，但多一层保险）
+        try {
+            val i = Intent(this, MonitorService::class.java)
+            startForegroundService(i)
+        } catch (_: Throwable) { }
+    }
+
     override fun onDestroy() {
         observer?.let { contentResolver.unregisterContentObserver(it) }
         observer = null
+        handler.removeCallbacks(pollRunnable)
+        // 销毁时也尝试自愈（除非系统强制停止）
+        try {
+            val i = Intent(this, MonitorService::class.java)
+            startForegroundService(i)
+        } catch (_: Throwable) { }
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            try {
+                scanInbox()
+            } catch (_: Throwable) { }
+            handler.postDelayed(this, POLL_INTERVAL_MS)
+        }
+    }
+
     private fun buildNotification() = NotificationCompat.Builder(this, Constants.CHANNEL_MONITOR_ID)
         .setContentTitle("短信监控运行中")
-        .setContentText("正在实时监听关键短信")
+        .setContentText("正在实时监听关键短信（广播+常驻+轮询三重保障）")
         .setSmallIcon(R.drawable.ic_notification)
         .setOngoing(true)
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .build()
 
     private inner class SmsObserver(handler: Handler) : ContentObserver(handler) {
-        private var lastId = -1L
-
         override fun onChange(selfChange: Boolean) {
             super.onChange(selfChange)
-            val cursor = contentResolver.query(
-                Telephony.Sms.CONTENT_URI,
-                arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY),
-                null,
-                null,
-                "${Telephony.Sms.DATE} DESC"
-            )
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    val id = it.getLong(0)
-                    if (id == lastId) return
-                    lastId = id
-                    val sender = it.getString(1) ?: ""
-                    val body = it.getString(2) ?: ""
-                    if (RulesRepository(this@MonitorService).matches(sender, body) != null) {
-                        AlertService.trigger(this@MonitorService, sender, body)
-                    }
-                }
+            try { scanInbox() } catch (_: Throwable) { }
+        }
+    }
+
+    /**
+     * 扫描收件箱最新一条，处理所有 id > lastSeenId 的新短信（按 id 升序，避免乱序）。
+     * 每条都写入 SmsLog；命中规则则触发强提醒。
+     */
+    private fun scanInbox() {
+        val cr: ContentResolver = contentResolver
+        val cursor = cr.query(
+            Telephony.Sms.CONTENT_URI,
+            arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY),
+            null, null,
+            "${Telephony.Sms._ID} ASC"
+        ) ?: return
+        cursor.use {
+            val idxId = it.getColumnIndex(Telephony.Sms._ID)
+            val idxAddr = it.getColumnIndex(Telephony.Sms.ADDRESS)
+            val idxBody = it.getColumnIndex(Telephony.Sms.BODY)
+            while (it.moveToNext()) {
+                val id = if (idxId >= 0) it.getLong(idxId) else -1L
+                if (id <= lastSeenId) continue
+                val sender = if (idxAddr >= 0) it.getString(idxAddr) ?: "" else ""
+                val body = if (idxBody >= 0) it.getString(idxBody) ?: "" else ""
+                lastSeenId = id
+                saveLastSeenId(id)
+                processMessage(sender, body)
             }
         }
+    }
+
+    private fun processMessage(sender: String, body: String) {
+        // 统一交给 AlertDispatch：记录日志 + 命中规则时触发强提醒（含跨通道去重）
+        AlertDispatch.handle(this, sender, body)
+    }
+
+    private fun getLastSeenId(): Long {
+        val prefs = getSharedPreferences(PREFS_MONITOR, Context.MODE_PRIVATE)
+        return prefs.getLong(KEY_LAST_SEEN_ID, -1L)
+    }
+
+    private fun saveLastSeenId(id: Long) {
+        val prefs = getSharedPreferences(PREFS_MONITOR, Context.MODE_PRIVATE)
+        prefs.edit().putLong(KEY_LAST_SEEN_ID, id).apply()
     }
 }

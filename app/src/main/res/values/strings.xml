@@ -20,6 +20,7 @@
     <string name="btn_settings">高级设置（铃声 / 强度）</string>
     <string name="btn_start_monitor">开启后台监控</string>
     <string name="btn_test_alert">测试提醒</string>
+    <string name="btn_log">提醒记录</string>
 
     <!-- 权限设置区 -->
     <string name="section_permissions">权限与系统设置</string>
@@ -31,6 +32,10 @@
 
     <!-- 提示区 -->
     <string name="guide_hint">请确保上方必要权限已开启，否则后台监控或强提醒可能无法正常工作。点击“测试提醒”可验证效果。</string>
+
+    <!-- 提醒记录页 -->
+    <string name="log_empty">暂无记录。收到短信后，无论是否命中规则都会在此显示，可用于验证 App 是否获取到了短信。</string>
+    <string name="log_clear">清空</string>
 
     <!-- 规则页 -->
     <string name="section_rules">规则设置</string>

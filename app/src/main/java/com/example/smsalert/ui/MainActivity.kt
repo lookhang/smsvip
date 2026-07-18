@@ -40,6 +40,9 @@ class MainActivity : AppCompatActivity() {
             appendGuide("已尝试开启后台监控。")
             refreshStatus()
         }
+        binding.btnLog.setOnClickListener {
+            startActivity(Intent(this, LogActivity::class.java))
+        }
         binding.btnTest.setOnClickListener {
             // 用测试数据直接触发强提醒，验证效果
             AlertService.trigger(this, "测试号码", "【测试】这是一条关键短信强提醒测试，用于验证响铃/震动/亮屏。")
@@ -65,6 +68,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshStatus()
+        // 进入主页即确保后台监控在运行（即便用户此前没点“开启后台监控”），
+        // 也用于小米下被回收后自愈拉起。
+        if (!MonitorService.isRunning(this)) {
+            MonitorService.start(this)
+        }
     }
 
     private fun refreshStatus() {

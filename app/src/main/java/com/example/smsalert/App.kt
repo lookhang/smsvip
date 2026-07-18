@@ -28,8 +28,14 @@ class App : Application() {
             ).apply {
                 description = "关键短信强提醒（最高优先级，可绕过勿扰）"
                 setBypassDnd(true)
-                // 声音由 AlertService 用 MediaPlayer 自行播放，渠道本身不重复响铃
-                setSound(null, null)
+                // 渠道自带声音：由系统通知栈播放，是穿透勿扰/静音最可靠的方式
+                // 同时 AlertService 会用 MediaPlayer 循环播放报警音，形成持续强提醒
+                val soundUri = android.net.Uri.parse("android.resource://$packageName/${R.raw.alarm}")
+                val attrs = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                setSound(soundUri, attrs)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 

@@ -57,6 +57,10 @@
             android:name=".ui.SettingsActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.LogActivity"
+            android:exported="false" />
+
         <!-- 强提醒全屏界面：锁屏上层、点亮屏幕、独占任务栈 -->
         <activity
             android:name=".ui.AlertActivity"
