@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
+import com.example.smsalert.util.AppLog
 
 /**
  * 应用入口：在启动时创建通知渠道。
@@ -14,7 +15,27 @@ import androidx.core.app.NotificationManagerCompat
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
-        createChannels()
+        AppLog.setContext(this)
+        installCrashHandler()
+        AppLog.i("App", "onCreate start, sdk=${Build.VERSION.SDK_INT}, pkg=$packageName")
+        try {
+            createChannels()
+            AppLog.i("App", "notification channels created")
+        } catch (e: Throwable) {
+            AppLog.e("App", "createChannels failed", e)
+        }
+    }
+
+    /** 全局崩溃捕获：把任何未捕获异常堆栈写入本地日志，便于事后导出分析 */
+    private fun installCrashHandler() {
+        val def = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                AppLog.e("CRASH", "Uncaught exception on thread=${thread.name}", throwable)
+            } catch (_: Throwable) {
+            }
+            def?.uncaughtException(thread, throwable)
+        }
     }
 
     private fun createChannels() {

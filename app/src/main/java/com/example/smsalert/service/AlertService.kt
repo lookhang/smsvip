@@ -26,6 +26,7 @@ import com.example.smsalert.Constants
 import com.example.smsalert.R
 import com.example.smsalert.data.SettingsRepository
 import com.example.smsalert.ui.AlertActivity
+import com.example.smsalert.util.AppLog
 
 /**
  * 强提醒播放引擎。
@@ -65,6 +66,7 @@ class AlertService : Service() {
 
         /** 入口：拉起前台播放服务 + 全屏 Activity */
         fun trigger(context: Context, sender: String, body: String) {
+            AppLog.i("AlertService", "trigger from=$sender bodyLen=${body.length}")
             val svc = Intent(context, AlertService::class.java).apply {
                 putExtra(Constants.EXTRA_SENDER, sender)
                 putExtra(Constants.EXTRA_BODY, body)
@@ -93,6 +95,7 @@ class AlertService : Service() {
             }
             sender = intent?.getStringExtra(Constants.EXTRA_SENDER) ?: ""
             body = intent?.getStringExtra(Constants.EXTRA_BODY) ?: ""
+            AppLog.i("AlertService", "onStartCommand alerting=$alerting sender=$sender")
 
             // 1) 立即进入前台（必须在 startForegroundService 后限定时间内调用，否则系统直接杀进程 / 闪退）
             startForegroundSafely()
@@ -113,7 +116,9 @@ class AlertService : Service() {
         try {
             ensureChannel()
             startForeground(NOTIF_ID, buildNotification())
+            AppLog.i("AlertService", "startForeground ok")
         } catch (e: Throwable) {
+            AppLog.e("AlertService", "startForeground failed, try fallback", e)
             try {
                 val fallback = NotificationCompat.Builder(this, Constants.CHANNEL_ALERT_ID)
                     .setContentTitle("关键短信强提醒")
@@ -122,7 +127,10 @@ class AlertService : Service() {
                     .setOngoing(true)
                     .build()
                 startForeground(NOTIF_ID, fallback)
-            } catch (_: Throwable) { }
+            } catch (e2: Throwable) {
+                AppLog.e("AlertService", "fallback startForeground also failed", e2)
+                try { stopSelf() } catch (_: Throwable) { }
+            }
         }
     }
 
@@ -158,13 +166,16 @@ class AlertService : Service() {
 
     private fun startAlert() {
         if (released) return
+        AppLog.i("AlertService", "startAlert begin")
         try {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmsAlert::AlertWake").apply {
                 setReferenceCounted(false)
                 acquire(10 * 60 * 1000L)
             }
-        } catch (_: Throwable) { }
+        } catch (e: Throwable) {
+            AppLog.e("AlertService", "acquire wakeLock failed", e)
+        }
 
         // 强制闹钟流：拉满音量 + 取消静音
         forceAlarmAudio()
@@ -176,9 +187,11 @@ class AlertService : Service() {
 
         // 强震动
         if (settings.vibrate) startVibration()
+        else AppLog.i("AlertService", "vibrate disabled by setting")
 
         // 周期保活
         scheduleRepeat()
+        AppLog.i("AlertService", "startAlert done")
     }
 
     /** 强制闹钟流：拉满音量 + 取消静音（关键修复点） */
@@ -230,8 +243,10 @@ class AlertService : Service() {
                 start()
             }
             afd.close()
+            AppLog.i("AlertService", "MediaPlayer started")
             true
         } catch (e: Throwable) {
+            AppLog.e("AlertService", "MediaPlayer failed, will fallback to Ringtone", e)
             false
         }
     }
@@ -242,13 +257,16 @@ class AlertService : Service() {
             stopSound()
             val userUri = settings.ringtoneUri
             val uri = if (!userUri.isNullOrBlank()) Uri.parse(userUri) else alarmSoundUri()
+            AppLog.i("AlertService", "Ringtone fallback uri=$uri")
             ringtone = RingtoneManager.getRingtone(this, uri)?.apply {
                 audioAttributes = alarmAudioAttrs
                 isLooping = true
                 play()
             }
+            if (ringtone != null) AppLog.i("AlertService", "Ringtone started") else AppLog.w("AlertService", "Ringtone null (getRingtone returned null)")
             ringtone != null
         } catch (e: Throwable) {
+            AppLog.e("AlertService", "Ringtone fallback also failed", e)
             false
         }
     }

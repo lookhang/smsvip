@@ -61,6 +61,17 @@
             android:name=".ui.LogActivity"
             android:exported="false" />
 
+        <!-- 文件分享（导出排查日志用） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- 强提醒全屏界面：锁屏上层、点亮屏幕、独占任务栈 -->
         <activity
             android:name=".ui.AlertActivity"

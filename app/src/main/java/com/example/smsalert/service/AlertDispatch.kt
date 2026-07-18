@@ -8,6 +8,7 @@ import com.example.smsalert.model.RuleType
 import com.example.smsalert.model.SmsLog
 import org.json.JSONArray
 import org.json.JSONObject
+import com.example.smsalert.util.AppLog
 
 /**
  * 统一的“短信处理/派发”入口：广播通道（SmsReceiver）与轮询通道（MonitorService）都调用本对象，
@@ -31,16 +32,21 @@ object AlertDispatch {
 
     fun handle(context: Context, sender: String, body: String) {
         val s = sig(sender, body)
-        if (recentlyLogged(context, s)) return // 已由任一通道记录过，跳过避免重复
+        if (recentlyLogged(context, s)) {
+            AppLog.d("AlertDispatch", "skip dup from=$sender")
+            return // 已由任一通道记录过，跳过避免重复
+        }
 
         val rules = RulesRepository(context)
         val logRepo = SmsLogRepository(context)
         val rule = runCatching { rules.matches(sender, body) }.getOrNull()
         val matched = rule != null
+        AppLog.i("AlertDispatch", "handle matched=$matched from=$sender rule=${rule?.value ?: ""}")
 
         val alerted = if (matched && shouldAlert(context, s)) {
             val ok = runCatching { AlertService.trigger(context, sender, body) }.isSuccess
             if (ok) markAlerted(context, s)
+            if (!ok) AppLog.e("AlertDispatch", "AlertService.trigger failed for from=$sender", null)
             ok
         } else false
 

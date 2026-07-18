@@ -21,6 +21,13 @@
     <string name="btn_start_monitor">开启后台监控</string>
     <string name="btn_test_alert">测试提醒</string>
     <string name="btn_log">提醒记录</string>
+    <string name="btn_app_log">排查日志</string>
+    <string name="log_title">排查日志（崩溃 / 运行记录）</string>
+    <string name="log_share">分享</string>
+    <string name="log_copy">复制</string>
+    <string name="log_clear">清空</string>
+    <string name="log_copied">已复制到剪贴板</string>
+    <string name="log_export_hint">把日志通过“分享”发给开发者，便于定位问题。</string>
 
     <!-- 权限设置区 -->
     <string name="section_permissions">权限与系统设置</string>

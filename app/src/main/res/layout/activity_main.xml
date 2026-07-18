@@ -255,6 +255,18 @@
                     app:icon="@drawable/ic_history"
                     app:iconGravity="textStart"
                     app:iconPadding="12dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAppLog"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/btn_app_log"
+                    style="@style/Widget.SmsAlert.Button.Outlined"
+                    app:icon="@drawable/ic_bug"
+                    app:iconGravity="textStart"
+                    app:iconPadding="12dp"
+                    app:strokeColor="?attr/colorOutline" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

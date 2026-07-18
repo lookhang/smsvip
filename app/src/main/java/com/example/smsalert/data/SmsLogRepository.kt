@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.example.smsalert.Constants
 import com.example.smsalert.model.SmsLog
+import com.example.smsalert.util.AppLog
 
 /**
  * 短信监测记录仓库（SQLite）。
@@ -58,6 +59,7 @@ class SmsLogRepository(context: Context) {
         return try {
             db().insert(TABLE, null, v)
         } catch (e: Exception) {
+            AppLog.e("SmsLogRepo", "insert failed", e)
             -1L
         }
     }
@@ -94,6 +96,7 @@ class SmsLogRepository(context: Context) {
                 }
             }
         } catch (e: Exception) {
+            AppLog.e("SmsLogRepo", "getAll failed", e)
             // 查询失败返回空
         }
         return list
@@ -105,6 +108,7 @@ class SmsLogRepository(context: Context) {
                 if (c.moveToFirst()) c.getInt(0) else 0
             }
         } catch (e: Exception) {
+            AppLog.e("SmsLogRepo", "count failed", e)
             0
         }
     }
@@ -117,7 +121,7 @@ class SmsLogRepository(context: Context) {
                     "(SELECT $COL_ID FROM $TABLE ORDER BY $COL_TIME DESC LIMIT $keep)"
             )
         } catch (e: Exception) {
-            // 忽略
+            AppLog.e("SmsLogRepo", "trim failed", e)
         }
     }
 
@@ -125,7 +129,7 @@ class SmsLogRepository(context: Context) {
         try {
             db().execSQL("DELETE FROM $TABLE")
         } catch (e: Exception) {
-            // 忽略
+            AppLog.e("SmsLogRepo", "clear failed", e)
         }
     }
 

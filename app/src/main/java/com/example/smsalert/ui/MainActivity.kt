@@ -1,19 +1,27 @@
 package com.example.smsalert.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.smsalert.R
 import com.example.smsalert.databinding.ActivityMainBinding
 import com.example.smsalert.service.AlertService
 import com.example.smsalert.service.MonitorService
+import com.example.smsalert.util.AppLog
 import com.example.smsalert.util.PermissionHelper
+import java.io.File
 
 /**
  * 主页：权限状态总览、规则/设置入口、后台监控开关、测试提醒，以及小米专属引导。
@@ -26,6 +34,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLog.i("MainActivity", "onCreate")
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -42,6 +51,10 @@ class MainActivity : AppCompatActivity() {
         }
         binding.btnLog.setOnClickListener {
             startActivity(Intent(this, LogActivity::class.java))
+        }
+        binding.btnAppLog.setOnClickListener {
+            AppLog.i("MainActivity", "open app log dialog")
+            showAppLog()
         }
         binding.btnTest.setOnClickListener {
             // 用测试数据直接触发强提醒，验证效果
@@ -67,11 +80,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        refreshStatus()
-        // 进入主页即确保后台监控在运行（即便用户此前没点“开启后台监控”），
-        // 也用于小米下被回收后自愈拉起。
-        if (!MonitorService.isRunning(this)) {
-            MonitorService.start(this)
+        // 防御性包裹：即便刷新状态或拉起监控抛异常，也绝不直接闪退，保证 App 可打开。
+        try {
+            refreshStatus()
+            // 进入主页即确保后台监控在运行（即便用户此前没点“开启后台监控”），
+            // 也用于小米下被回收后自愈拉起。
+            if (!MonitorService.isRunning(this)) {
+                AppLog.i("MainActivity", "onResume: starting MonitorService")
+                MonitorService.start(this)
+            }
+        } catch (e: Throwable) {
+            AppLog.e("MainActivity", "onResume failed (app kept open)", e)
+            Toast.makeText(this, "启动监控时出现异常，已记录到排查日志", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -168,5 +188,59 @@ class MainActivity : AppCompatActivity() {
     private fun appendGuide(text: String) {
         val cur = binding.tvGuide.text.toString()
         binding.tvGuide.text = if (cur.isBlank()) text else "$cur\n$text"
+    }
+
+    /** 显示排查日志弹窗，并提供“分享 / 复制 / 清空” */
+    private fun showAppLog() {
+        val log = AppLog.getLog(this)
+        val tv = TextView(this).apply {
+            text = log
+            textSize = 11f
+            typeface = Typeface.MONOSPACE
+            setPadding(40, 24, 40, 24)
+        }
+        val scroll = ScrollView(this).apply {
+            addView(tv)
+            setPadding(24, 8, 24, 8)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.log_title)
+            .setMessage(R.string.log_export_hint)
+            .setView(scroll)
+            .setPositiveButton(R.string.log_share) { _, _ -> shareLog() }
+            .setNeutralButton(R.string.log_copy) { _, _ -> copyLog(log) }
+            .setNegativeButton(R.string.log_clear) { _, _ ->
+                AppLog.clear(this)
+                Toast.makeText(this, "已清空日志", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+
+    /** 通过系统分享把日志文件发给开发者（用 FileProvider 生成 uri） */
+    private fun shareLog() {
+        try {
+            val exportFile = File(filesDir, "app_log_export.txt")
+            exportFile.writeText(AppLog.getLog(this))
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", exportFile)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, getString(R.string.log_share)))
+        } catch (e: Throwable) {
+            AppLog.e("MainActivity", "shareLog failed", e)
+            Toast.makeText(this, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun copyLog(log: String) {
+        try {
+            val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("sms_alert_log", log))
+            Toast.makeText(this, getString(R.string.log_copied), Toast.LENGTH_SHORT).show()
+        } catch (e: Throwable) {
+            AppLog.e("MainActivity", "copyLog failed", e)
+        }
     }
 }

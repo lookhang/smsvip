@@ -13,6 +13,7 @@ import android.provider.Telephony
 import androidx.core.app.NotificationCompat
 import com.example.smsalert.Constants
 import com.example.smsalert.R
+import com.example.smsalert.util.AppLog
 
 /**
  * 备份触发通道：前台服务 + 监听短信收件箱的 ContentObserver + 定时轮询兜底。
@@ -54,18 +55,30 @@ class MonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        AppLog.i("MonitorService", "onCreate")
         lastSeenId = getLastSeenId()
-        startForeground(1, buildNotification())
+        startForegroundSafe()
         val cr = contentResolver
         observer = SmsObserver(Handler(mainLooper))
         cr.registerContentObserver(Telephony.Sms.CONTENT_URI, true, observer!!)
         // 兜底轮询：即使广播/Observer 失效，也能抓到新短信
         handler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
+        AppLog.i("MonitorService", "started, polling every ${POLL_INTERVAL_MS}ms")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(1, buildNotification())
+        startForegroundSafe()
         return START_STICKY
+    }
+
+    /** 安全启动前台通知：失败只记录并停止自身，绝不直接拖垮 App 进程 */
+    private fun startForegroundSafe() {
+        try {
+            startForeground(1, buildNotification())
+        } catch (e: Throwable) {
+            AppLog.e("MonitorService", "startForeground failed, stopSelf", e)
+            try { stopSelf() } catch (_: Throwable) { }
+        }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -126,11 +139,16 @@ class MonitorService : Service() {
             arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY),
             null, null,
             "${Telephony.Sms._ID} ASC"
-        ) ?: return
+        )
+        if (cursor == null) {
+            AppLog.w("MonitorService", "scanInbox: query returned null (likely 无短信读取权限)")
+            return
+        }
         cursor.use {
             val idxId = it.getColumnIndex(Telephony.Sms._ID)
             val idxAddr = it.getColumnIndex(Telephony.Sms.ADDRESS)
             val idxBody = it.getColumnIndex(Telephony.Sms.BODY)
+            var newCount = 0
             while (it.moveToNext()) {
                 val id = if (idxId >= 0) it.getLong(idxId) else -1L
                 if (id <= lastSeenId) continue
@@ -138,13 +156,16 @@ class MonitorService : Service() {
                 val body = if (idxBody >= 0) it.getString(idxBody) ?: "" else ""
                 lastSeenId = id
                 saveLastSeenId(id)
+                newCount++
                 processMessage(sender, body)
             }
+            if (newCount > 0) AppLog.i("MonitorService", "scanInbox: $newCount 条新短信已处理")
         }
     }
 
     private fun processMessage(sender: String, body: String) {
         // 统一交给 AlertDispatch：记录日志 + 命中规则时触发强提醒（含跨通道去重）
+        AppLog.i("MonitorService", "processMessage from=$sender bodyLen=${body.length}")
         AlertDispatch.handle(this, sender, body)
     }
 
