@@ -35,10 +35,9 @@ class SettingsRepository(context: Context) {
         get() = prefs.getBoolean(Constants.KEY_SCREEN_FLASH, true)
         set(v) = prefs.edit().putBoolean(Constants.KEY_SCREEN_FLASH, v).apply()
 
-    /** 默认铃声 Uri（优先闹钟声，回退到铃声） */
-    fun defaultRingtoneUri(): String {
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-        return uri.toString()
+    /** 默认铃声 Uri（优先闹钟声，回退到铃声）；系统无默认铃声时返回 null，由 AlertService 回退内置报警音 */
+    fun defaultRingtoneUri(): String? {
+        return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.toString()
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)?.toString()
     }
 }

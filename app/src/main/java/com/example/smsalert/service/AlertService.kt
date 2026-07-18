@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -102,16 +101,11 @@ class AlertService : Service() {
             )
         }
 
-        // 3) 准备并循环播放铃声
-        val uriStr = settings.ringtoneUri ?: run {
-            val def = settings.defaultRingtoneUri()
-            settings.ringtoneUri = def
-            def
-        }
-        if (!startPlayer(uriStr)) {
-            // 兜底：使用系统默认闹钟声
-            startPlayer(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM).toString())
-        }
+        // 3) 准备并循环播放铃声：优先用户自定义铃声，失败则用内置报警音
+        //    （内置 res/raw/alarm.wav 不依赖系统默认铃声，避免部分小米设备无默认闹钟声导致 NPE/无声音）
+        val userUri = settings.ringtoneUri
+        val ok = if (!userUri.isNullOrBlank()) startPlayer(userUri) else false
+        if (!ok) startPlayerBuiltIn()
 
         // 4) 强震动
         if (settings.vibrate) startVibration()
@@ -131,6 +125,28 @@ class AlertService : Service() {
                 start()
             }
             true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 用内置报警音（res/raw/alarm.wav）播放，走 STREAM_ALARM 以绕过静音/勿扰。
+     * 不依赖系统默认铃声，彻底规避部分小米设备无默认闹钟声导致的 NPE/无声音。
+     */
+    private fun startPlayerBuiltIn(): Boolean {
+        return try {
+            mediaPlayer?.release()
+            resources.openRawResourceFd(R.raw.alarm)?.use { afd ->
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                    setAudioStreamType(AudioManager.STREAM_ALARM)
+                    isLooping = true
+                    prepare()
+                    start()
+                }
+            }
+            mediaPlayer != null
         } catch (e: Exception) {
             false
         }

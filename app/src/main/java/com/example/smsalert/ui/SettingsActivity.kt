@@ -55,8 +55,12 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun updateRingtoneText() {
         val uriStr = settings.ringtoneUri ?: settings.defaultRingtoneUri()
+        if (uriStr.isNullOrBlank()) {
+            binding.tvRingtone.text = "内置报警音（系统无默认铃声）"
+            return
+        }
         val ringtone = RingtoneManager.getRingtone(this, Uri.parse(uriStr))
-        val name = ringtone?.getTitle(this) ?: "系统默认闹钟声"
+        val name = ringtone?.getTitle(this) ?: "内置报警音"
         binding.tvRingtone.text = name
     }
 
