@@ -60,6 +60,15 @@ jobs:
             --notes "Auto-built from commit ${{ github.sha }}" \
             --prerelease
 
+      - name: Cleanup stale ci-error releases
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for t in $(gh release list --json tagName --jq '.[].tagName' | grep '^ci-error-' || true); do
+            gh release delete "$t" --yes || true
+          done
+
       - name: Report build error (public release, readable without token)
         if: failure()
         env:
