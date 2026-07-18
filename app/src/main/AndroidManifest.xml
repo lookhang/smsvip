@@ -26,6 +26,9 @@
     <!-- 唤醒屏幕 / 保持 CPU -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- 修改音频设置（强制闹钟流音量 / 取消静音） -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <!-- 开机自启后台监控 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
