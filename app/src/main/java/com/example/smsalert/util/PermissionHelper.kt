@@ -53,6 +53,37 @@ object PermissionHelper {
     }
 
     /**
+     * 尝试跳转到小米“权限管理”应用详情页（用于系统弹窗不再出现时手动授权）。
+     * 不同 MIUI/HyperOS 版本类名不同，调用方需用 resolveActivity 校验后兜底到应用详情页。
+     */
+    fun miuiPermissionIntent(context: Context): Intent? {
+        val candidates = listOf(
+            "com.miui.permcenter.permissions.AppPermissionsEditorActivity",
+            "com.miui.permcenter.permission.AppPermissionsActivity",
+            "com.miui.securitycenter.permission.ui.AppPermissionEditorActivity"
+        )
+        for (cls in candidates) {
+            try {
+                val intent = Intent().apply {
+                    setClassName("com.miui.securitycenter", cls)
+                    putExtra("extra_pkgname", context.packageName)
+                }
+                if (intent.resolveActivity(context.packageManager) != null) return intent
+            } catch (e: Exception) {
+                // try next
+            }
+        }
+        return null
+    }
+
+    /** 系统应用详情页（通用兜底，最可靠），从这里进“权限管理”手动开启短信。 */
+    fun appDetailsIntent(context: Context): Intent {
+        return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+        }
+    }
+
+    /**
      * 尝试跳转到小米“自启动”管理页。
      * 不同 MIUI/HyperOS 版本包名/类名可能不同，调用方需做好兜底（手动引导）。
      */

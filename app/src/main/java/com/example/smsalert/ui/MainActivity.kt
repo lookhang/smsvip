@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.smsalert.R
 import com.example.smsalert.databinding.ActivityMainBinding
 import com.example.smsalert.service.AlertService
@@ -79,7 +80,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestSms() {
-        ActivityCompat.requestPermissions(this, PermissionHelper.smsPermissions(), SMS_REQ)
+        val perms = PermissionHelper.smsPermissions()
+        if (PermissionHelper.hasSmsPermissions(this)) {
+            appendGuide("短信权限已授权。")
+            return
+        }
+        // 若某权限既未授权、又 shouldShowRequestPermissionRationale=false，
+        // 说明用户曾勾选“不再询问”或 MIUI 已接管并不再弹窗 → 直接跳设置页手动开。
+        val blocked = perms.any {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+                    && !ActivityCompat.shouldShowRequestPermissionRationale(this, it)
+        }
+        if (blocked) {
+            val mi = PermissionHelper.miuiPermissionIntent(this)
+            if (mi != null) {
+                appendGuide("系统弹窗已不再出现，正在打开小米「权限管理」，请将「短信」设为允许。")
+                startActivity(mi)
+            } else {
+                appendGuide("正在打开系统应用设置，请进入「权限」→「短信」设为允许。")
+                startActivity(PermissionHelper.appDetailsIntent(this))
+            }
+        } else {
+            ActivityCompat.requestPermissions(this, perms, SMS_REQ)
+        }
     }
 
     private fun requestNotif() {
@@ -99,9 +122,12 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            appendGuide("权限已授予。")
+            appendGuide("短信权限已授予。")
         } else {
-            appendGuide("部分权限被拒绝，强提醒可能失效，请到系统设置手动开启。")
+            appendGuide(
+                "短信权限被拒绝。小米手机请前往：设置 → 应用设置 → 权限管理 → 关键短信强提醒 → " +
+                "短信 → 设为「允许」（含接收与读取）；或把本应用设为默认短信应用。强提醒依赖此权限。"
+            )
         }
         refreshStatus()
     }
