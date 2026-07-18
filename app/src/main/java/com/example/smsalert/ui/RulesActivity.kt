@@ -36,7 +36,7 @@ class RulesActivity : AppCompatActivity() {
             repo.toggle(rule.id, !rule.enabled)
             refresh()
         }
-        binding.listRules.onItemLongClickListener { _, _, pos, _ ->
+        binding.listRules.onItemLongClickListener = android.widget.AdapterView.OnItemLongClickListener { _, _, pos, _ ->
             val rule = currentRules[pos]
             AlertDialog.Builder(this)
                 .setTitle("删除规则")
