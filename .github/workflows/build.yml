@@ -60,53 +60,30 @@ jobs:
             --notes "Auto-built from commit ${{ github.sha }}" \
             --prerelease
 
-      - name: Report build error
+      - name: Report build error (public release, readable without token)
         if: failure()
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python - <<'PY'
-          import json, os, urllib.request, urllib.error, re
+          import os, subprocess, textwrap
           data = open('build.log', encoding='utf-8', errors='replace').read()
-          lines = data.splitlines()
-          # Extract the "What went wrong" block (header -> next "Try:" or blank section)
-          hits = []
-          capture = False
-          for ln in lines:
-              if "* What went wrong:" in ln:
-                  capture = True
-                  hits.append(ln.strip())
-                  continue
-              if capture:
-                  if ln.strip().startswith("Try:") or ln.strip().startswith("Get more help"):
-                      break
-                  hits.append(ln.strip())
-          # Also grab explicit resolution failures
-          for ln in lines:
-              s = ln.strip()
-              if s.startswith("> Could not resolve") or s.startswith("> Could not find") \
-                 or s.startswith("> Could not determine") or s.startswith("Execution failed for"):
-                  hits.append(s)
-          focus = "\n".join(hits[:60])
-          tail = data[-4000:]
-          body = ("CI build failed.\n\n## Key error lines\n```\n" + focus +
-                  "\n```\n\n## Tail of log\n```\n" + tail + "\n```")
-          payload = json.dumps({"title": "CI build failure", "body": body}).encode('utf-8')
-          req = urllib.request.Request(
-              f"https://api.github.com/repos/{os.environ['REPO']}/issues",
-              data=payload,
-              headers={
-                  "Authorization": "Bearer " + os.environ['GITHUB_TOKEN'],
-                  "Accept": "application/vnd.github+json",
-                  "Content-Type": "application/json",
-                  "X-GitHub-Api-Version": "2022-11-28",
-              },
-              method="POST"
-          )
-          try:
-              with urllib.request.urlopen(req) as r:
-                  print("Issue created:", r.geturl())
-          except urllib.error.HTTPError as e:
-              print("Issue create failed:", e.code, e.read().decode()[:300])
+          # keep full but cap to 40000 chars to fit release body
+          if len(data) > 40000:
+              data = data[-40000:]
+          # escape for JSON
+          import json
+          body = "CI build failed. Full build log:\n\n```\n" + data + "\n```"
+          tag = "ci-error-" + os.environ.get('GITHUB_SHA', 'x')[:8]
+          # delete previous same tag release if any
+          subprocess.run(["gh", "release", "delete", tag, "--yes"],
+                         env={**os.environ, "GH_TOKEN": os.environ["GH_TOKEN"]},
+                         capture_output=True)
+          r = subprocess.run(
+              ["gh", "release", "create", tag, "--title", "CI Error " + tag,
+               "--notes", body, "--prerelease"],
+              env={**os.environ, "GH_TOKEN": os.environ["GH_TOKEN"]},
+              capture_output=True, text=True)
+          print("gh release create rc=", r.returncode)
+          print(r.stdout[-500:], r.stderr[-500:])
           PY
