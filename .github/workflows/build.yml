@@ -67,11 +67,18 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python - <<'PY'
-          import json, os, urllib.request, urllib.error
+          import json, os, urllib.request, urllib.error, re
           data = open('build.log', encoding='utf-8', errors='replace').read()
-          # keep the tail (most relevant) but cap size
-          tail = data[-6000:]
-          body = "CI build failed. Last part of build log:\n\n```\n" + tail + "\n```"
+          lines = data.splitlines()
+          # Extract the most relevant error lines
+          keys = ["What went wrong", "Conflict", "Failed to resolve", "Could not find",
+                  "was configured to prefer", "but was actually", "FAILURE:", "BUILD FAILED",
+                  "No matching variant", "requires", "Inconsistency detected"]
+          hits = [ln.strip() for ln in lines if any(k in ln for k in keys)]
+          focus = "\n".join(hits[:60])
+          tail = data[-4000:]
+          body = ("CI build failed.\n\n## Key error lines\n```\n" + focus +
+                  "\n```\n\n## Tail of log\n```\n" + tail + "\n```")
           payload = json.dumps({"title": "CI build failure", "body": body}).encode('utf-8')
           req = urllib.request.Request(
               f"https://api.github.com/repos/{os.environ['REPO']}/issues",
