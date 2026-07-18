@@ -70,11 +70,24 @@ jobs:
           import json, os, urllib.request, urllib.error, re
           data = open('build.log', encoding='utf-8', errors='replace').read()
           lines = data.splitlines()
-          # Extract the most relevant error lines
-          keys = ["What went wrong", "Conflict", "Failed to resolve", "Could not find",
-                  "was configured to prefer", "but was actually", "FAILURE:", "BUILD FAILED",
-                  "No matching variant", "requires", "Inconsistency detected"]
-          hits = [ln.strip() for ln in lines if any(k in ln for k in keys)]
+          # Extract the "What went wrong" block (header -> next "Try:" or blank section)
+          hits = []
+          capture = False
+          for ln in lines:
+              if "* What went wrong:" in ln:
+                  capture = True
+                  hits.append(ln.strip())
+                  continue
+              if capture:
+                  if ln.strip().startswith("Try:") or ln.strip().startswith("Get more help"):
+                      break
+                  hits.append(ln.strip())
+          # Also grab explicit resolution failures
+          for ln in lines:
+              s = ln.strip()
+              if s.startswith("> Could not resolve") or s.startswith("> Could not find") \
+                 or s.startswith("> Could not determine") or s.startswith("Execution failed for"):
+                  hits.append(s)
           focus = "\n".join(hits[:60])
           tail = data[-4000:]
           body = ("CI build failed.\n\n## Key error lines\n```\n" + focus +
