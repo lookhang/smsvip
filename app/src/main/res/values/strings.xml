@@ -42,7 +42,6 @@
 
     <!-- 提醒记录页 -->
     <string name="log_empty">暂无记录。收到短信后，无论是否命中规则都会在此显示，可用于验证 App 是否获取到了短信。</string>
-    <string name="log_clear">清空</string>
 
     <!-- 规则页 -->
     <string name="section_rules">规则设置</string>
