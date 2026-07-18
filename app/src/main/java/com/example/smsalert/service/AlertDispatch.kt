@@ -118,11 +118,12 @@ object AlertDispatch {
         val arr = try { JSONArray(prefs.getString(key, "[]") ?: "[]") }
         catch (e: Exception) { JSONArray() }
         val now = System.currentTimeMillis()
-        val it = arr.iterator()
-        while (it.hasNext()) {
-            val o = it.next() as JSONObject
-            if (now - o.getLong("t") > window) it.remove()
+        val toRemove = mutableListOf<Int>()
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            if (now - o.getLong("t") > window) toRemove.add(i)
         }
+        for (i in toRemove.reversed()) arr.remove(i)
         return arr
     }
 

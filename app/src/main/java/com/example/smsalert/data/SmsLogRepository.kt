@@ -101,7 +101,7 @@ class SmsLogRepository(context: Context) {
 
     fun count(): Int {
         return try {
-            db().query("SELECT COUNT(*) FROM $TABLE", null).use { c ->
+            db().rawQuery("SELECT COUNT(*) FROM $TABLE", null).use { c ->
                 if (c.moveToFirst()) c.getInt(0) else 0
             }
         } catch (e: Exception) {
