@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 紫底白铃：应用图标 -->
+    <path android:fillColor="#6750A4" android:pathData="M0,0h24v24h-24z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M12,3C9.8,3 8,4.8 8,7V11.5L6,13.5V14.5H18V13.5L16,11.5V7C16,4.8 14.2,3 12,3zM10,17A2,2 0 0,0 12,19A2,2 0 0,0 14,17H10z" />
+</vector>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_500">#6750A4</color>
+    <color name="purple_700">#21005D</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="alert_red">#D32F2F</color>
+    <color name="alert_bg">#1A0000</color>
+    <color name="alert_accent">#FFCDD2</color>
+</resources>

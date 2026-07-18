@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.SmsAlert" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryDark">@color/purple_700</item>
+        <item name="android:statusBarColor">@color/purple_700</item>
+    </style>
+
+    <!-- 强提醒全屏主题：纯黑底、状态栏/导航栏同色、无标题 -->
+    <style name="Theme.SmsAlert.Alert" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@color/alert_bg</item>
+        <item name="android:statusBarColor">@color/alert_bg</item>
+        <item name="android:navigationBarColor">@color/alert_bg</item>
+        <item name="colorPrimary">@color/alert_red</item>
+        <item name="android:colorBackground">@color/alert_bg</item>
+    </style>
+</resources>
