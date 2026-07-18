@@ -38,7 +38,39 @@ jobs:
           unzip -q gradle.zip
           echo "$(pwd)/gradle-8.2/bin" >> "$GITHUB_PATH"
 
+      - name: Ensure persistent signing keystore
+        env:
+          STORE_PASS: "SmsVipSign2026!"
+          KEY_PASS: "SmsVipSign2026!"
+        run: |
+          mkdir -p keystore
+          if [ ! -f keystore/release.keystore ]; then
+            echo "No keystore found - generating a persistent signing keystore..."
+            keytool -genkeypair -v \
+              -keystore keystore/release.keystore \
+              -storetype PKCS12 \
+              -alias smsvip \
+              -keyalg RSA -keysize 2048 \
+              -validity 10000 \
+              -storepass "$STORE_PASS" \
+              -keypass "$KEY_PASS" \
+              -dname "CN=SMS VIP, OU=Personal, O=Personal, L=Unknown, ST=Unknown, C=CN"
+            # 把密钥提交回仓库，保证后续所有构建复用同一把钥匙（[skip ci] 避免递归触发）
+            git config user.email "ci@github.com"
+            git config user.name "github-actions"
+            git add keystore/release.keystore
+            git commit -m "chore: add persistent signing keystore [skip ci]" || echo "nothing to commit"
+            git push origin HEAD || echo "push failed (non-fatal, keystore still usable this run)"
+          else
+            echo "Keystore already present - reusing the same signing key."
+          fi
+
       - name: Build with Gradle
+        env:
+          KEYSTORE_FILE: ${{ github.workspace }}/keystore/release.keystore
+          KEYSTORE_PASSWORD: "SmsVipSign2026!"
+          KEY_ALIAS: "smsvip"
+          KEY_PASSWORD: "SmsVipSign2026!"
         run: gradle :app:assembleDebug --no-daemon 2>&1 | tee build.log
 
       - name: Upload APK

@@ -15,8 +15,24 @@ android {
         versionName "1.0"
     }
 
-    buildTypes {
+    signingConfigs {
         release {
+            // 优先读取 CI 注入的绝对路径；本地构建回退到仓库内的固定密钥
+            storeFile file(System.getenv("KEYSTORE_FILE") ?: "../keystore/release.keystore")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "SmsVipSign2026!"
+            keyAlias System.getenv("KEY_ALIAS") ?: "smsvip"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "SmsVipSign2026!"
+            storeType "PKCS12"
+        }
+    }
+
+    buildTypes {
+        debug {
+            // 让 debug 包也使用固定签名密钥，避免每次重装都要先卸载
+            signingConfig signingConfigs.release
+        }
+        release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
