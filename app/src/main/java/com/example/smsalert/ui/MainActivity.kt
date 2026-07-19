@@ -80,18 +80,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 防御性包裹：即便刷新状态或拉起监控抛异常，也绝不直接闪退，保证 App 可打开。
+        // 防御性包裹：即便刷新状态抛异常，也绝不直接闪退，保证 App 可打开。
+        // 注意：不再在 onResume 自动拉起 MonitorService。前台服务若未能在系统
+        // 限定的 5 秒内调用 startForeground，进程会被系统直接杀死（表现为
+        // “打开即闪退”），且这种延迟崩溃发生在 onResume 的 try/catch 之外，
+        // catch 无法拦截。后台监控改由用户点「开启后台监控」按钮显式拉起。
         try {
             refreshStatus()
-            // 进入主页即确保后台监控在运行（即便用户此前没点“开启后台监控”），
-            // 也用于小米下被回收后自愈拉起。
-            if (!MonitorService.isRunning(this)) {
-                AppLog.i("MainActivity", "onResume: starting MonitorService")
-                MonitorService.start(this)
-            }
         } catch (e: Throwable) {
-            AppLog.e("MainActivity", "onResume failed (app kept open)", e)
-            Toast.makeText(this, "启动监控时出现异常，已记录到排查日志", Toast.LENGTH_LONG).show()
+            AppLog.e("MainActivity", "onResume refreshStatus failed (app kept open)", e)
         }
     }
 

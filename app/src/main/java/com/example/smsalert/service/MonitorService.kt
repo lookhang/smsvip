@@ -36,7 +36,11 @@ class MonitorService : Service() {
 
         fun start(context: Context) {
             val intent = Intent(context, MonitorService::class.java)
-            context.startForegroundService(intent)
+            try {
+                context.startForegroundService(intent)
+            } catch (e: Throwable) {
+                AppLog.e("MonitorService", "start failed", e)
+            }
         }
 
         /** 服务是否正在运行（用于主页在 onResume 时按需拉起） */

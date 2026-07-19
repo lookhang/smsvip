@@ -54,14 +54,25 @@ object AppLog {
 
     private fun write(level: String, tag: String, msg: String) {
         val ctx = appContext ?: return
+        val line = "${sdf.format(Date())} $level/$tag: $msg"
+        // 内部私有目录：App 内「排查日志」可读
+        appendLine(File(ctx.filesDir, FILE_NAME), line)
+        // 外部存储：App 若闪退进不去，用户仍可在
+        // /sdcard/Android/data/com.example.smsalert/files/app_log.txt 取到日志
         try {
-            val file = File(ctx.filesDir, FILE_NAME)
+            val ext = ctx.getExternalFilesDir(null)
+            if (ext != null) appendLine(File(ext, FILE_NAME), line)
+        } catch (_: Throwable) { }
+    }
+
+    private fun appendLine(file: File, line: String) {
+        try {
             val existing = if (file.exists()) file.readLines() else emptyList()
-            val all = existing + "${sdf.format(Date())} $level/$tag: $msg"
+            val all = existing + line
             val trimmed = if (all.size > MAX_LINES) all.takeLast(MAX_LINES) else all
             file.bufferedWriter().use { w ->
-                for (line in trimmed) {
-                    w.write(line)
+                for (l in trimmed) {
+                    w.write(l)
                     w.write("\n")
                 }
             }
