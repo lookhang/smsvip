@@ -8,6 +8,7 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.Telephony
 import androidx.core.app.NotificationCompat
@@ -28,7 +29,7 @@ import com.example.smsalert.util.AppLog
  */
 class MonitorService : Service() {
     private var observer: SmsObserver? = null
-    private val handler = Handler(mainLooper)
+    private val handler = Handler(Looper.getMainLooper())
     private var lastSeenId: Long = -1L
 
     companion object {

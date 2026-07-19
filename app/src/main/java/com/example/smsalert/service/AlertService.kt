@@ -17,6 +17,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -54,7 +55,7 @@ class AlertService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var audioFocusReq: AudioFocusRequest? = null
-    private val handler = Handler(mainLooper)
+    private val handler = Handler(Looper.getMainLooper())
     private lateinit var settings: SettingsRepository
     private var sender: String = ""
     private var body: String = ""

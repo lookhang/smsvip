@@ -63,10 +63,20 @@ class MainActivity : AppCompatActivity() {
         binding.btnGrantSms.setOnClickListener { requestSms() }
         binding.btnGrantNotif.setOnClickListener { requestNotif() }
         binding.btnBattery.setOnClickListener {
-            startActivity(PermissionHelper.batteryOptimizationIntent(this))
+            try {
+                startActivity(PermissionHelper.batteryOptimizationIntent(this))
+            } catch (e: Throwable) {
+                AppLog.w("MainActivity", "open battery settings failed", e)
+                appendGuide("未能自动打开电池设置，请手动前往：设置 → 应用设置 → 关键短信强提醒 → 省电策略 → 无限制。")
+            }
         }
         binding.btnOverlay.setOnClickListener {
-            startActivity(PermissionHelper.overlaySettingsIntent(this))
+            try {
+                startActivity(PermissionHelper.overlaySettingsIntent(this))
+            } catch (e: Throwable) {
+                AppLog.w("MainActivity", "open overlay settings failed", e)
+                appendGuide("未能自动打开悬浮窗设置，请手动前往：设置 → 应用设置 → 关键短信强提醒 → 悬浮窗 → 允许。")
+            }
         }
         binding.btnAutostart.setOnClickListener {
             val mi = PermissionHelper.miuiAutoStartIntent()
@@ -143,9 +153,14 @@ class MainActivity : AppCompatActivity() {
         }
         if (blocked) {
             val mi = PermissionHelper.miuiPermissionIntent(this)
-            if (mi != null) {
+            if (mi != null && mi.resolveActivity(packageManager) != null) {
                 appendGuide("系统弹窗已不再出现，正在打开小米「权限管理」，请将「短信」设为允许。")
-                startActivity(mi)
+                try {
+                    startActivity(mi)
+                } catch (e: Throwable) {
+                    AppLog.w("MainActivity", "open miui permission page failed, fallback to app details", e)
+                    startActivity(PermissionHelper.appDetailsIntent(this))
+                }
             } else {
                 appendGuide("正在打开系统应用设置，请进入「权限」→「短信」设为允许。")
                 startActivity(PermissionHelper.appDetailsIntent(this))
