@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(PermissionHelper.batteryOptimizationIntent(this))
             } catch (e: Throwable) {
-                AppLog.w("MainActivity", "open battery settings failed", e)
+                AppLog.e("MainActivity", "open battery settings failed", e)
                 appendGuide("未能自动打开电池设置，请手动前往：设置 → 应用设置 → 关键短信强提醒 → 省电策略 → 无限制。")
             }
         }
@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(PermissionHelper.overlaySettingsIntent(this))
             } catch (e: Throwable) {
-                AppLog.w("MainActivity", "open overlay settings failed", e)
+                AppLog.e("MainActivity", "open overlay settings failed", e)
                 appendGuide("未能自动打开悬浮窗设置，请手动前往：设置 → 应用设置 → 关键短信强提醒 → 悬浮窗 → 允许。")
             }
         }
@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     startActivity(mi)
                 } catch (e: Throwable) {
-                    AppLog.w("MainActivity", "open miui permission page failed, fallback to app details", e)
+                    AppLog.e("MainActivity", "open miui permission page failed, fallback to app details", e)
                     startActivity(PermissionHelper.appDetailsIntent(this))
                 }
             } else {
