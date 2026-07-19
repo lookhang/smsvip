@@ -35,6 +35,16 @@ class SettingsRepository(context: Context) {
         get() = prefs.getBoolean(Constants.KEY_SCREEN_FLASH, true)
         set(v) = prefs.edit().putBoolean(Constants.KEY_SCREEN_FLASH, v).apply()
 
+    /** 是否启用语音播报（女声念出关键词/号码） */
+    var ttsEnabled: Boolean
+        get() = prefs.getBoolean(Constants.KEY_TTS_ENABLED, true)
+        set(v) = prefs.edit().putBoolean(Constants.KEY_TTS_ENABLED, v).apply()
+
+    /** 语音播报是否同时朗读短信正文 */
+    var ttsReadBody: Boolean
+        get() = prefs.getBoolean(Constants.KEY_TTS_READ_BODY, false)
+        set(v) = prefs.edit().putBoolean(Constants.KEY_TTS_READ_BODY, v).apply()
+
     /** 默认铃声 Uri（优先闹钟声，回退到铃声）；系统无默认铃声时返回 null，由 AlertService 回退内置报警音 */
     fun defaultRingtoneUri(): String? {
         return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.toString()

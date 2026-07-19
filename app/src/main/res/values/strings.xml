@@ -63,6 +63,8 @@
     <string name="opt_max_volume">强制最大闹钟音量（绕过静音）</string>
     <string name="opt_vibrate">强震动</string>
     <string name="opt_flash">锁屏界面红色闪烁</string>
+    <string name="opt_tts">语音播报（女声念出关键词 / 号码）</string>
+    <string name="opt_tts_body">语音同时朗读短信正文</string>
     <string name="btn_save">保存并返回</string>
 
     <!-- 全屏强提醒页 -->

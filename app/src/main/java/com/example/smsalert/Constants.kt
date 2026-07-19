@@ -14,6 +14,8 @@ object Constants {
     // 意图附加数据
     const val EXTRA_SENDER = "extra_sender"
     const val EXTRA_BODY = "extra_body"
+    const val EXTRA_MATCHED_VALUE = "extra_matched_value"
+    const val EXTRA_RULE_TYPE = "extra_rule_type"
 
     // SharedPreferences 文件名
     const val PREFS_RULES = "rules_prefs"
@@ -28,4 +30,6 @@ object Constants {
     const val KEY_MAX_VOLUME = "max_volume"
     const val KEY_VIBRATE = "vibrate"
     const val KEY_SCREEN_FLASH = "screen_flash"
+    const val KEY_TTS_ENABLED = "tts_enabled"
+    const val KEY_TTS_READ_BODY = "tts_read_body"
 }

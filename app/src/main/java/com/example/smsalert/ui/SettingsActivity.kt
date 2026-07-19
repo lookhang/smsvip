@@ -33,6 +33,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.cbMaxVolume.isChecked = settings.maxVolume
         binding.cbVibrate.isChecked = settings.vibrate
         binding.cbFlash.isChecked = settings.screenFlash
+        binding.cbTts.isChecked = settings.ttsEnabled
+        binding.cbTtsBody.isChecked = settings.ttsReadBody
         updateRingtoneText()
 
         binding.btnRingtone.setOnClickListener { pickRingtone() }
@@ -40,6 +42,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.cbMaxVolume.setOnCheckedChangeListener { _, c -> settings.maxVolume = c }
         binding.cbVibrate.setOnCheckedChangeListener { _, c -> settings.vibrate = c }
         binding.cbFlash.setOnCheckedChangeListener { _, c -> settings.screenFlash = c }
+        binding.cbTts.setOnCheckedChangeListener { _, c -> settings.ttsEnabled = c }
+        binding.cbTtsBody.setOnCheckedChangeListener { _, c -> settings.ttsReadBody = c }
 
         binding.btnSave.setOnClickListener {
             val v = binding.etInterval.text.toString().toIntOrNull()

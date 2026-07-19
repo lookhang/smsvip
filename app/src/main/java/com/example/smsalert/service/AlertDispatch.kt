@@ -44,7 +44,9 @@ object AlertDispatch {
         AppLog.i("AlertDispatch", "handle matched=$matched from=$sender rule=${rule?.value ?: ""}")
 
         val alerted = if (matched && shouldAlert(context, s)) {
-            val ok = runCatching { AlertService.trigger(context, sender, body) }.isSuccess
+            val matchedValue = rule?.value ?: ""
+            val ruleTypeName = rule?.type?.name ?: ""
+            val ok = runCatching { AlertService.trigger(context, sender, body, matchedValue, ruleTypeName) }.isSuccess
             if (ok) markAlerted(context, s)
             if (!ok) AppLog.e("AlertDispatch", "AlertService.trigger failed for from=$sender", null)
             ok

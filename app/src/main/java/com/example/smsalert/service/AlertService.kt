@@ -22,6 +22,9 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.speech.tts.TextToSpeech
+import android.speech.tts.Voice
+import java.util.Locale
 import androidx.core.app.NotificationCompat
 import com.example.smsalert.Constants
 import com.example.smsalert.R
@@ -62,15 +65,32 @@ class AlertService : Service() {
     private var alerting = false
     private var released = false
 
+    // 语音播报（女声念出关键词/号码）
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var ttsEnabled = true
+    private var ttsReadBody = false
+    private var matchedValue: String = ""
+    private var ruleType: String = ""
+    private var pendingSpeak: String? = null
+
     companion object {
         private const val NOTIF_ID = 1001
 
         /** 入口：拉起前台播放服务 + 全屏 Activity */
-        fun trigger(context: Context, sender: String, body: String) {
-            AppLog.i("AlertService", "trigger from=$sender bodyLen=${body.length}")
+        fun trigger(
+            context: Context,
+            sender: String,
+            body: String,
+            matchedValue: String = "",
+            ruleType: String = ""
+        ) {
+            AppLog.i("AlertService", "trigger from=$sender bodyLen=${body.length} matched=$matchedValue type=$ruleType")
             val svc = Intent(context, AlertService::class.java).apply {
                 putExtra(Constants.EXTRA_SENDER, sender)
                 putExtra(Constants.EXTRA_BODY, body)
+                putExtra(Constants.EXTRA_MATCHED_VALUE, matchedValue)
+                putExtra(Constants.EXTRA_RULE_TYPE, ruleType)
             }
             context.startForegroundService(svc)
 
@@ -86,6 +106,9 @@ class AlertService : Service() {
     override fun onCreate() {
         super.onCreate()
         settings = SettingsRepository(this)
+        ttsEnabled = settings.ttsEnabled
+        ttsReadBody = settings.ttsReadBody
+        initTts()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -96,6 +119,8 @@ class AlertService : Service() {
             }
             sender = intent?.getStringExtra(Constants.EXTRA_SENDER) ?: ""
             body = intent?.getStringExtra(Constants.EXTRA_BODY) ?: ""
+            matchedValue = intent?.getStringExtra(Constants.EXTRA_MATCHED_VALUE) ?: ""
+            ruleType = intent?.getStringExtra(Constants.EXTRA_RULE_TYPE) ?: ""
             AppLog.i("AlertService", "onStartCommand alerting=$alerting sender=$sender")
 
             // 1) 立即进入前台（必须在 startForegroundService 后限定时间内调用，否则系统直接杀进程 / 闪退）
@@ -189,6 +214,9 @@ class AlertService : Service() {
         // 强震动
         if (settings.vibrate) startVibration()
         else AppLog.i("AlertService", "vibrate disabled by setting")
+
+        // 语音播报：女声念出关键词/号码
+        if (settings.ttsEnabled) speakAlert()
 
         // 周期保活
         scheduleRepeat()
@@ -289,6 +317,7 @@ class AlertService : Service() {
                 val playing = mediaPlayer?.isPlaying == true || ringtone?.isPlaying == true
                 if (!playing) startSound()
                 if (settings.vibrate) startVibration()
+                if (settings.ttsEnabled) speakAlert()
             } catch (_: Throwable) { }
             handler.postDelayed(this, (settings.repeatIntervalSec * 1000).toLong())
         }
@@ -318,6 +347,96 @@ class AlertService : Service() {
                     it.vibrate(pattern, 0)
                 }
             } catch (_: Throwable) { }
+        }
+    }
+
+    /** 初始化 TTS 引擎（异步）；初始化完成后再播放待播文本 */
+    private fun initTts() {
+        try {
+            tts = TextToSpeech(this) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    val t = tts ?: return@TextToSpeech
+                    try { t.language = Locale.SIMPLIFIED_CHINESE } catch (_: Throwable) { }
+                    pickFemaleChineseVoice(t)
+                    try {
+                        t.setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build()
+                        )
+                    } catch (_: Throwable) { }
+                    ttsReady = true
+                    // 初始化期间若已有待播文本（alert 已先触发），补播
+                    pendingSpeak?.let { speakNow(it); pendingSpeak = null }
+                    AppLog.i("AlertService", "TTS ready")
+                } else {
+                    AppLog.e("AlertService", "TTS init failed status=$status", null)
+                }
+            }
+        } catch (e: Throwable) {
+            AppLog.e("AlertService", "TTS construct failed", e)
+        }
+    }
+
+    /** 在引擎提供的声音中优先挑“中文女声”；找不到则以高音模拟 */
+    private fun pickFemaleChineseVoice(t: TextToSpeech) {
+        try {
+            val voices: Set<Voice> = t.voices ?: return
+            val zh = voices.filter {
+                val l = it.locale
+                l.language == "zh" || l.language == "cmn" || l.country == "CN"
+            }
+            val pool = if (zh.isNotEmpty()) zh else voices
+            val female = pool.firstOrNull { v ->
+                val n = v.name.lowercase()
+                n.contains("female") || n.contains("女") || n.contains("xiaoxiao") ||
+                        n.contains("xiaoyi") || n.contains("yaoyao") || n.contains("ting") ||
+                        n.contains("huihui") || n.contains("mei") || n.contains("yue") ||
+                        n.contains("yating") || n.contains("yuna")
+            }
+            if (female != null) {
+                t.voice = female
+                AppLog.i("AlertService", "TTS female voice=${female.name}")
+            } else {
+                t.setPitch(1.35f) // 无女声可用时提高音调解近女声
+                AppLog.i("AlertService", "TTS no female voice, use pitch=1.35")
+            }
+            t.setSpeechRate(0.95f)
+        } catch (e: Throwable) {
+            AppLog.e("AlertService", "pickFemaleChineseVoice failed", e)
+        }
+    }
+
+    /** 组合播报文本并发声；TTS 未就绪则暂存，待初始化完成后补播 */
+    private fun speakAlert() {
+        if (!ttsEnabled) return
+        val text = buildSpeakText()
+        if (text.isBlank()) return
+        if (ttsReady) speakNow(text) else pendingSpeak = text
+    }
+
+    private fun buildSpeakText(): String {
+        val sb = StringBuilder()
+        when (ruleType) {
+            "KEYWORD" -> sb.append("收到含关键词 ${safe(matchedValue)} 的短信")
+            "SENDER" -> sb.append("收到来自号码 ${safe(matchedValue)} 的短信")
+            "TEST" -> sb.append("这是一条测试提醒")
+            else -> sb.append("收到一条关键短信")
+        }
+        if (ttsReadBody && body.isNotBlank()) {
+            sb.append("。内容：${body.take(120)}")
+        }
+        return sb.toString()
+    }
+
+    private fun safe(s: String): String = if (s.isBlank()) "未知" else s
+
+    private fun speakNow(text: String) {
+        try {
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "alert_tts")
+        } catch (e: Throwable) {
+            AppLog.e("AlertService", "tts.speak failed", e)
         }
     }
 
@@ -358,6 +477,11 @@ class AlertService : Service() {
         alerting = false
         handler.removeCallbacks(repeatRunnable)
         stopSound()
+        try { tts?.stop() } catch (_: Throwable) { }
+        try { tts?.shutdown() } catch (_: Throwable) { }
+        tts = null
+        ttsReady = false
+        pendingSpeak = null
         try { vibrator?.cancel() } catch (_: Throwable) { }
         vibrator = null
         try {

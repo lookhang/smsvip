@@ -57,8 +57,12 @@ class MainActivity : AppCompatActivity() {
             showAppLog()
         }
         binding.btnTest.setOnClickListener {
-            // 用测试数据直接触发强提醒，验证效果
-            AlertService.trigger(this, "测试号码", "【测试】这是一条关键短信强提醒测试，用于验证响铃/震动/亮屏。")
+            // 用测试数据直接触发强提醒，验证效果（同时演示女声播报）
+            AlertService.trigger(
+                this, "测试号码",
+                "【测试】这是一条关键短信强提醒测试，用于验证响铃/震动/亮屏。",
+                "测试提醒", "TEST"
+            )
         }
         binding.btnGrantSms.setOnClickListener { requestSms() }
         binding.btnGrantNotif.setOnClickListener { requestNotif() }
