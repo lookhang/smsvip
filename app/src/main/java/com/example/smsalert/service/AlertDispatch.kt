@@ -39,25 +39,34 @@ object AlertDispatch {
 
         val rules = RulesRepository(context)
         val logRepo = SmsLogRepository(context)
-        val rule = runCatching { rules.matches(sender, body) }.getOrNull()
-        val matched = rule != null
-        AppLog.i("AlertDispatch", "handle matched=$matched from=$sender rule=${rule?.value ?: ""}")
+        // 收集**所有**命中规则（可能同时命中多个关键词/号码）
+        val matchedRules = runCatching { rules.matchesAll(sender, body) }.getOrDefault(emptyList())
+        val matched = matchedRules.isNotEmpty()
 
-        val alerted = if (matched && shouldAlert(context, s)) {
-            val matchedValue = rule?.value ?: ""
-            val ruleTypeName = rule?.type?.name ?: ""
-            val ok = runCatching { AlertService.trigger(context, sender, body, matchedValue, ruleTypeName) }.isSuccess
-            if (ok) markAlerted(context, s)
-            if (!ok) AppLog.e("AlertDispatch", "AlertService.trigger failed for from=$sender", null)
+        // 合并命中的关键词与号码（去重、保序）
+        val keywordVals = matchedRules.filter { it.type == RuleType.KEYWORD }.map { it.value }.distinct()
+        val senderVals = matchedRules.filter { it.type == RuleType.SENDER }.map { it.value }.distinct()
+        // 播报优先用关键词（更具描述性），否则用号码
+        val speakType = if (keywordVals.isNotEmpty()) RuleType.KEYWORD.name else if (senderVals.isNotEmpty()) RuleType.SENDER.name else ""
+        val speakValue = if (keywordVals.isNotEmpty()) keywordVals.joinToString("、") else senderVals.joinToString("、")
+        AppLog.i("AlertDispatch", "handle matched=$matched from=$sender hits=${matchedRules.size} kw=$keywordVals")
+
+        // 关键：同一短信（含命中多个关键词、双通道并发）只报警一次 —— 用原子 claim
+        val alerted = if (matched && claimAlert(context, s)) {
+            val ok = runCatching { AlertService.trigger(context, sender, body, speakValue, speakType) }.isSuccess
+            if (!ok) {
+                releaseAlertClaim(context, s) // 触发失败则撤销 claim，允许后续重试
+                AppLog.e("AlertDispatch", "AlertService.trigger failed for from=$sender", null)
+            }
             ok
         } else false
 
-        val ruleDesc = when {
-            matched && rule?.type != null -> when (rule.type) {
-                RuleType.KEYWORD -> "[关键词] ${rule.value}"
-                RuleType.SENDER -> "[号码] ${rule.value}"
+        val ruleDesc = buildString {
+            if (keywordVals.isNotEmpty()) append("[关键词] ${keywordVals.joinToString("、")}")
+            if (senderVals.isNotEmpty()) {
+                if (isNotEmpty()) append("  ")
+                append("[号码] ${senderVals.joinToString("、")}")
             }
-            else -> ""
         }
         logRepo.insert(
             SmsLog(
@@ -90,18 +99,38 @@ object AlertDispatch {
         return false
     }
 
+    /**
+     * 原子“认领报警”：检查 + 标记在同一同步块内完成。
+     * 仅第一个调用者（对某短信签名）返回 true，其余（含双通道并发、命中多个关键词）返回 false，
+     * 从而保证同一短信只触发一次强提醒。
+     */
     @Synchronized
-    private fun shouldAlert(context: Context, s: String): Boolean {
+    private fun claimAlert(context: Context, s: String): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val arr = prune(prefs, KEY_ALERT, ALERT_WINDOW_MS)
         for (i in 0 until arr.length()) {
             if (arr.getJSONObject(i).getString("s") == s) {
                 writeArr(prefs, KEY_ALERT, arr)
-                return false
+                return false // 已被认领，跳过
             }
         }
+        arr.put(JSONObject().apply { put("s", s); put("t", System.currentTimeMillis()) })
+        while (arr.length() > MAX_ENTRIES) arr.remove(0)
         writeArr(prefs, KEY_ALERT, arr)
         return true
+    }
+
+    /** 撤销报警认领（触发失败时调用，允许后续通道重试） */
+    @Synchronized
+    private fun releaseAlertClaim(context: Context, s: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val arr = prune(prefs, KEY_ALERT, ALERT_WINDOW_MS)
+        val remove = mutableListOf<Int>()
+        for (i in 0 until arr.length()) {
+            if (arr.getJSONObject(i).getString("s") == s) remove.add(i)
+        }
+        for (i in remove.reversed()) arr.remove(i)
+        writeArr(prefs, KEY_ALERT, arr)
     }
 
     @Synchronized
@@ -111,15 +140,6 @@ object AlertDispatch {
         arr.put(JSONObject().apply { put("s", s); put("t", System.currentTimeMillis()) })
         while (arr.length() > MAX_ENTRIES) arr.remove(0)
         writeArr(prefs, KEY_LOG, arr)
-    }
-
-    @Synchronized
-    private fun markAlerted(context: Context, s: String) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val arr = prune(prefs, KEY_ALERT, ALERT_WINDOW_MS)
-        arr.put(JSONObject().apply { put("s", s); put("t", System.currentTimeMillis()) })
-        while (arr.length() > MAX_ENTRIES) arr.remove(0)
-        writeArr(prefs, KEY_ALERT, arr)
     }
 
     private fun prune(prefs: SharedPreferences, key: String, window: Long): JSONArray {

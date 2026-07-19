@@ -42,10 +42,18 @@ class RulesRepository(context: Context) {
      * @return 命中的规则；无命中返回 null
      */
     fun matches(sender: String, body: String): Rule? {
+        return matchesAll(sender, body).firstOrNull()
+    }
+
+    /**
+     * 返回短信命中的**所有**启用规则（可能同时命中多个关键词/号码）。
+     * 上层据此合并展示与播报，但只触发一次强提醒。
+     */
+    fun matchesAll(sender: String, body: String): List<Rule> {
         val s = sender.trim()
         val b = body.lowercase()
-        return getAll().firstOrNull { rule ->
-            if (!rule.enabled || rule.value.isBlank()) return@firstOrNull false
+        return getAll().filter { rule ->
+            if (!rule.enabled || rule.value.isBlank()) return@filter false
             when (rule.type) {
                 RuleType.KEYWORD -> b.contains(rule.value.lowercase())
                 RuleType.SENDER -> {

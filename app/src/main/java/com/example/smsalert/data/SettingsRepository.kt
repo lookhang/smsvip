@@ -45,6 +45,11 @@ class SettingsRepository(context: Context) {
         get() = prefs.getBoolean(Constants.KEY_TTS_READ_BODY, false)
         set(v) = prefs.edit().putBoolean(Constants.KEY_TTS_READ_BODY, v).apply()
 
+    /** 内置报警音标识（alarm/siren/beep/pulse），对应 res/raw 资源 */
+    var builtinAlarm: String
+        get() = prefs.getString(Constants.KEY_BUILTIN_ALARM, Constants.ALARM_DEFAULT) ?: Constants.ALARM_DEFAULT
+        set(v) = prefs.edit().putString(Constants.KEY_BUILTIN_ALARM, v).apply()
+
     /** 默认铃声 Uri（优先闹钟声，回退到铃声）；系统无默认铃声时返回 null，由 AlertService 回退内置报警音 */
     fun defaultRingtoneUri(): String? {
         return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.toString()

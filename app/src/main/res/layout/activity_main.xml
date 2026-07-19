@@ -369,5 +369,15 @@
                 android:lineSpacingExtra="4dp" />
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 版权信息 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/copyright"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:gravity="center" />
+
     </LinearLayout>
 </ScrollView>

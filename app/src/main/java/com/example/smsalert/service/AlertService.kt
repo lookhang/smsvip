@@ -187,8 +187,16 @@ class AlertService : Service() {
             .build()
     }
 
+    /** 当前选择的内置报警音 raw 资源 id */
+    private fun alarmRawResId(): Int = when (settings.builtinAlarm) {
+        Constants.ALARM_SIREN -> R.raw.siren
+        Constants.ALARM_BEEP -> R.raw.beep
+        Constants.ALARM_PULSE -> R.raw.pulse
+        else -> R.raw.alarm
+    }
+
     private fun alarmSoundUri(): Uri =
-        Uri.parse("android.resource://$packageName/${R.raw.alarm}")
+        Uri.parse("android.resource://$packageName/${alarmRawResId()}")
 
     private fun startAlert() {
         if (released) return
@@ -262,7 +270,7 @@ class AlertService : Service() {
     private fun startMediaPlayer(): Boolean {
         return try {
             stopSound()
-            val afd = resources.openRawResourceFd(R.raw.alarm)
+            val afd = resources.openRawResourceFd(alarmRawResId())
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(alarmAudioAttrs)
                 setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)

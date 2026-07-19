@@ -32,4 +32,11 @@ object Constants {
     const val KEY_SCREEN_FLASH = "screen_flash"
     const val KEY_TTS_ENABLED = "tts_enabled"
     const val KEY_TTS_READ_BODY = "tts_read_body"
+    const val KEY_BUILTIN_ALARM = "builtin_alarm"
+
+    // 内置报警音标识（对应 res/raw 下的资源名）
+    const val ALARM_DEFAULT = "alarm"
+    const val ALARM_SIREN = "siren"
+    const val ALARM_BEEP = "beep"
+    const val ALARM_PULSE = "pulse"
 }

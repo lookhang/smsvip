@@ -54,7 +54,14 @@
     <!-- 设置页 -->
     <string name="section_settings">高级设置</string>
     <string name="settings_subtitle">自定义提醒铃声与强度</string>
-    <string name="label_ringtone">提醒铃声</string>
+    <string name="label_builtin_alarm">内置报警音</string>
+    <string name="builtin_alarm_hint">选择 App 内置的报警声（主音源）</string>
+    <string name="alarm_default">默认警报</string>
+    <string name="alarm_siren">双音警笛</string>
+    <string name="alarm_beep">急促滴滴</string>
+    <string name="alarm_pulse">脉冲蜂鸣</string>
+    <string name="alarm_preview">试听</string>
+    <string name="label_ringtone">铃声兜底（系统闹钟声）</string>
     <string name="default_ringtone">系统默认闹钟声</string>
     <string name="btn_choose">选择</string>
     <string name="label_interval">重复保活间隔</string>
@@ -71,4 +78,7 @@
     <string name="alert_title">关键短信</string>
     <string name="alert_sender_label">发件人</string>
     <string name="alert_dismiss">我已知晓，关闭提醒</string>
+
+    <!-- 版权信息 -->
+    <string name="copyright">版权所有 · 及时挪车的平民</string>
 </resources>
