@@ -35,7 +35,7 @@
     <string name="btn_grant_notif">授予通知权限</string>
     <string name="btn_battery">电池无限制（关掉省电）</string>
     <string name="btn_overlay">授予悬浮窗（可选）</string>
-    <string name="btn_autostart">小米：开启自启动</string>
+    <string name="btn_autostart">开启自启动</string>
 
     <!-- 提示区 -->
     <string name="guide_hint">请确保上方必要权限已开启，否则后台监控或强提醒可能无法正常工作。点击“测试提醒”可验证效果。</string>

@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity() {
         if (blocked) {
             val mi = PermissionHelper.miuiPermissionIntent(this)
             if (mi != null && mi.resolveActivity(packageManager) != null) {
-                appendGuide("系统弹窗已不再出现，正在打开小米「权限管理」，请将「短信」设为允许。")
+                appendGuide("系统弹窗已不再出现，正在打开「权限管理」，请将「短信」设为允许。")
                 try {
                     startActivity(mi)
                 } catch (e: Throwable) {
@@ -194,7 +194,7 @@ class MainActivity : AppCompatActivity() {
             appendGuide("短信权限已授予。")
         } else {
             appendGuide(
-                "短信权限被拒绝。小米手机请前往：设置 → 应用设置 → 权限管理 → 关键短信强提醒 → " +
+                "短信权限被拒绝。请前往：设置 → 应用设置 → 权限管理 → 关键短信强提醒 → " +
                 "短信 → 设为「允许」（含接收与读取）；或把本应用设为默认短信应用。强提醒依赖此权限。"
             )
         }
